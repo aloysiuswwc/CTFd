@@ -409,8 +409,17 @@ def files(path):
                     else:
                         abort(403)
         else:
+            # User cannot view challenges based on challenge visibility
+            # e.g. ctf requires registration but user isn't authed or
+            # ctf requires admin account but user isn't admin
             if not ctftime():
-                abort(403)
+                # It's not CTF time. The only edge case is if the CTF is ended
+                # but we have view_after_ctf enabled
+                if ctf_ended() and view_after_ctf():
+                    pass
+                else:
+                    # In all other situations we should block challenge files
+                    abort(403)
 
             # Allow downloads if a valid token is provided
             token = request.args.get("token", "")
@@ -465,6 +474,26 @@ def themes(theme, path):
     :param theme:
     :param path:
     :return:
+    """
+    for cand_path in (
+        safe_join(app.root_path, "themes", cand_theme, "static", path)
+        # The `theme` value passed in may not be the configured one, e.g. for
+        # admin pages, so we check that first
+        for cand_theme in (theme, *config.ctf_theme_candidates())
+    ):
+        if os.path.isfile(cand_path):
+            return send_file(cand_path)
+    abort(404)
+
+
+@views.route("/themes/<theme>/static/<path:path>")
+def themes_beta(theme, path):
+    """
+    This is a copy of the above themes route used to avoid
+    the current appending of .dev and .min for theme assets.
+
+    In CTFd 4.0 this url_for behavior and this themes_beta
+    route will be removed.
     """
     for cand_path in (
         safe_join(app.root_path, "themes", cand_theme, "static", path)
